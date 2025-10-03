@@ -48,69 +48,16 @@ As a commissary operator, when labels are damaged, misprinted, or lost, I want t
 ## Technical Implementation
 
 ### Reprint Wizard
-```python
-class LabelReprintWizard(models.TransientModel):
-    _name = 'label.reprint.wizard'
-    
-    mo_id = fields.Many2one('mrp.production', required=True)
-    reprint_type = fields.Selection([
-        ('all', 'Reprint All'),
-        ('range', 'Reprint Range'),
-        ('single', 'Reprint Single Box')
-    ], default='all')
-    
-    from_box = fields.Integer('From Box', default=1)
-    to_box = fields.Integer('To Box')
-    single_box = fields.Integer('Box Number')
-    printer_id = fields.Many2one('printer.configuration')
-    
-    def action_reprint(self):
-        # Determine boxes to reprint
-        if self.reprint_type == 'all':
-            box_numbers = range(1, self.to_box + 1)
-        elif self.reprint_type == 'range':
-            box_numbers = range(self.from_box, self.to_box + 1)
-        else:
-            box_numbers = [self.single_box]
-        
-        # Retrieve lot data
-        lot_records = self.env['lot.number.generator'].search([
-            ('mo_id', '=', self.mo_id.id),
-            ('box_number', 'in', list(box_numbers))
-        ])
-        
-        # Create reprint job
-        return self.env['label.print.job'].create_reprint_job(
-            mo=self.mo_id,
-            lot_records=lot_records,
-            printer=self.printer_id
-        )
-```
+
+> **Code Example**: See [appendix/code-examples/odoo/wizards/label_reprint_wizard.py](../../../appendix/code-examples/odoo/wizards/label_reprint_wizard.py)
+
+Transient model wizard providing a user-friendly interface for reprinting labels with three modes: all, range, or single box.
 
 ### Job Creation
-```python
-@api.model
-def create_reprint_job(self, mo, lot_records, printer):
-    labels_data = []
-    for lot in lot_records:
-        zpl = self._generate_label_zpl(
-            mo=mo,
-            lot_number=lot.lot_number,
-            box_number=lot.box_number,
-            catch_weight=lot.catch_weight
-        )
-        labels_data.append({'zpl_code': zpl, 'box_number': lot.box_number})
-    
-    job = self.create({
-        'mo_id': mo.id,
-        'quantity': len(labels_data),
-        'labels_data': json.dumps(labels_data),
-        'job_type': 'manual_reprint'
-    })
-    
-    job._submit_to_print_server()
-    return job
-```
+
+> **Code Example**: See [appendix/code-examples/odoo/models/reprint_job_creation.py](../../../appendix/code-examples/odoo/models/reprint_job_creation.py)
+
+Creates print jobs for manual reprints by retrieving existing lot data and regenerating ZPL for the selected boxes.
 
 ## Audit Trail
 - Log all reprint actions with user, timestamp, and box numbers

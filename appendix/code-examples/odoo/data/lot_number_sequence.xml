@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Lot Number Sequence Configuration
+
+Defines the Odoo sequence used for generating unique lot numbers.
+Uses year-based prefix with 6-digit padding.
+
+Source: F02-lot-number-generation.md - Example 8
+-->
+<odoo>
+    <data noupdate="1">
+        <record id="seq_lot_number" model="ir.sequence">
+            <field name="name">Lot Number Sequence</field>
+            <field name="code">lot.number.sequence</field>
+            <field name="prefix">LOT-%(year)s-</field>
+            <field name="padding">6</field>
+            <field name="number_increment">1</field>
+            <field name="implementation">standard</field>
+            <field name="use_date_range">True</field>
+        </record>
+    </data>
+</odoo>

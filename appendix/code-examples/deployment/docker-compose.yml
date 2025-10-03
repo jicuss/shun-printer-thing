@@ -1,0 +1,47 @@
+# Docker Compose Configuration
+#
+# Complete multi-container setup for Redis, Flask API, and RQ workers.
+#
+# Source: operations/deployment.md - Example 58
+
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  flask-api:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - REDIS_HOST=redis
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: rq worker print --url redis://redis:6379
+    environment:
+      - REDIS_HOST=redis
+    env_file:
+      - .env
+    volumes:
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis-data:

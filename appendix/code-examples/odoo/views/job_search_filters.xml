@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Print Job Search and Filter View
+
+Search view with filters for status, date ranges, and grouping options.
+
+Source: F07-job-monitoring.md - Example 32
+-->
+<odoo>
+    <record id="view_label_print_job_search" model="ir.ui.view">
+        <field name="name">label.print.job.search</field>
+        <field name="model">label.print.job</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="mo_id"/>
+                <field name="submitted_by"/>
+                
+                <filter name="today" string="Today"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="this_week" string="This Week"
+                        domain="[('create_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                
+                <filter name="completed" string="Completed"
+                        domain="[('status', '=', 'completed')]"/>
+                <filter name="failed" string="Failed"
+                        domain="[('status', '=', 'failed')]"/>
+                <filter name="active" string="Active"
+                        domain="[('status', 'in', ['pending', 'sent', 'queued', 'printing'])]"/>
+                
+                <group expand="0" string="Group By">
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_mo" string="Manufacturing Order" context="{'group_by': 'mo_id'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

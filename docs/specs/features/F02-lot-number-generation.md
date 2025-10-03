@@ -48,93 +48,15 @@ LOT-{YEAR}-{SEQUENCE}
 
 ### 1. Sequence Configuration
 
-**Odoo Sequence Definition** (`data/sequences.xml`):
-```xml
-<odoo>
-    <data noupdate="1">
-        <record id="seq_lot_number" model="ir.sequence">
-            <field name="name">Lot Number Sequence</field>
-            <field name="code">lot.number.sequence</field>
-            <field name="prefix">LOT-%(year)s-</field>
-            <field name="padding">6</field>
-            <field name="number_increment">1</field>
-            <field name="implementation">standard</field>
-            <field name="use_date_range">True</field>
-        </record>
-    </data>
-</odoo>
-```
+> **Code Example**: See [appendix/code-examples/odoo/data/lot_number_sequence.xml](../../../appendix/code-examples/odoo/data/lot_number_sequence.xml)
+
+**Odoo Sequence Definition**: Uses year-based prefix with 6-digit padding and date range support for automatic year rollover.
 
 ### 2. Generation Logic
 
-```python
-class LotNumberGenerator(models.Model):
-    _name = 'lot.number.generator'
-    _description = 'Lot Number Generation'
-    
-    mo_id = fields.Many2one('mrp.production', 'Manufacturing Order', required=True)
-    product_id = fields.Many2one('product.product', 'Product', required=True)
-    lot_number = fields.Char('Lot Number', required=True, index=True)
-    box_number = fields.Integer('Box Number')
-    catch_weight = fields.Float('Catch Weight')
-    label_printed = fields.Boolean('Label Printed', default=False)
-    print_job_id = fields.Many2one('label.print.job', 'Print Job')
-    created_date = fields.Datetime('Created Date', default=fields.Datetime.now)
-    
-    _sql_constraints = [
-        ('lot_number_unique', 'UNIQUE(lot_number)', 
-         'Lot number must be unique!')
-    ]
-    
-    @api.model
-    def generate_for_mo_split(self, mo, quantity):
-        """Generate lot numbers for all units in MO split"""
-        lot_records = []
-        
-        for i in range(quantity):
-            lot_number = self._generate_unique_lot_number()
-            
-            lot_record = self.create({
-                'mo_id': mo.id,
-                'product_id': mo.product_id.id,
-                'lot_number': lot_number,
-                'box_number': i + 1,
-                'catch_weight': self._get_catch_weight(mo, i),
-            })
-            lot_records.append(lot_record)
-        
-        return lot_records
-    
-    def _generate_unique_lot_number(self):
-        """Generate unique lot number with collision prevention"""
-        max_attempts = 10
-        
-        for attempt in range(max_attempts):
-            lot_number = self.env['ir.sequence'].next_by_code(
-                'lot.number.sequence'
-            )
-            
-            # Check for collision (should be rare with proper sequence config)
-            if not self.search([('lot_number', '=', lot_number)]):
-                return lot_number
-            
-            _logger.warning(
-                f"Lot number collision detected: {lot_number}. "
-                f"Retry attempt {attempt + 1}/{max_attempts}"
-            )
-        
-        raise ValidationError(
-            "Unable to generate unique lot number after multiple attempts. "
-            "Please contact system administrator."
-        )
-    
-    def _get_catch_weight(self, mo, index):
-        """Retrieve catch weight for specific product unit"""
-        # Integration with existing catch weight module
-        # This is read-only - we don't modify the catch weight module
-        catch_weight_data = mo.move_raw_ids[index].catch_weight_info
-        return catch_weight_data.weight if catch_weight_data else 0.0
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/lot_number_generator.py](../../../appendix/code-examples/odoo/models/lot_number_generator.py)
+
+The lot number generator model handles batch generation for MO splits with built-in collision detection, retry logic, and integration with the catch weight module.
 
 ### 3. Concurrency Handling
 
@@ -159,19 +81,9 @@ def create(self, vals):
 
 ### 4. Integration with Stock Lot Tracking
 
-```python
-def _create_stock_production_lot(self):
-    """Create Odoo stock.production.lot records for traceability"""
-    StockLot = self.env['stock.production.lot']
-    
-    for lot_gen in self:
-        StockLot.create({
-            'name': lot_gen.lot_number,
-            'product_id': lot_gen.product_id.id,
-            'company_id': lot_gen.mo_id.company_id.id,
-            'ref': f"MO: {lot_gen.mo_id.name} - Box {lot_gen.box_number}"
-        })
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/stock_lot_integration.py](../../../appendix/code-examples/odoo/models/stock_lot_integration.py)
+
+Creates corresponding stock.production.lot records for full integration with Odoo's inventory tracking system.
 
 ## Configuration Options
 
@@ -189,18 +101,10 @@ Accessible via: `Settings → Technical → Parameters → System Parameters`
 ## Validation Rules
 
 ### Format Validation
-```python
-@api.constrains('lot_number')
-def _check_lot_number_format(self):
-    """Validate lot number matches expected format"""
-    pattern = r'^LOT-\d{4}-\d{6}$'
-    for record in self:
-        if not re.match(pattern, record.lot_number):
-            raise ValidationError(
-                f"Invalid lot number format: {record.lot_number}. "
-                f"Expected format: LOT-YYYY-NNNNNN"
-            )
-```
+
+> **Code Example**: See [appendix/code-examples/odoo/models/lot_number_validation.py](../../../appendix/code-examples/odoo/models/lot_number_validation.py)
+
+Regex-based validation ensures all lot numbers follow the expected format pattern.
 
 ### Uniqueness Validation
 - Enforced by database constraint: `lot_number_unique`
@@ -234,11 +138,10 @@ Generate report showing:
 - Current location/status
 
 ### Quick Search
-```python
-def search_by_lot_number(self, lot_number):
-    """Quick lookup by lot number for traceability"""
-    return self.search([('lot_number', '=', lot_number)])
-```
+
+> **Code Example**: See [appendix/code-examples/odoo/models/lot_number_search.py](../../../appendix/code-examples/odoo/models/lot_number_search.py)
+
+Provides fast lot number lookups for traceability and recall management.
 
 ## Performance Considerations
 - Lot number generation: O(1) for each number

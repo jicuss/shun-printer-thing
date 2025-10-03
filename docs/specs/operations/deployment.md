@@ -22,37 +22,16 @@ Step-by-step guide for deploying the shun-printer label printing system.
 ### Phase 1: Ubuntu Server Setup
 
 **1. Update System**
-```bash
-sudo apt update && sudo apt upgrade -y
-```
+
+> **Script**: See [appendix/code-examples/deployment/01-system-update.sh](../../../appendix/code-examples/deployment/01-system-update.sh)
 
 **2. Install Dependencies**
-```bash
-# Docker
-sudo apt install docker.io docker-compose -y
-sudo systemctl start docker
-sudo systemctl enable docker
 
-# CUPS
-sudo apt install cups cups-client -y
-sudo systemctl start cups
-sudo systemctl enable cups
-
-# Python dependencies
-sudo apt install python3-pip python3-cups -y
-```
+> **Script**: See [appendix/code-examples/deployment/02-install-dependencies.sh](../../../appendix/code-examples/deployment/02-install-dependencies.sh)
 
 **3. Configure Firewall**
-```bash
-# Allow Flask API port
-sudo ufw allow 5000/tcp
 
-# Allow CUPS web interface (optional)
-sudo ufw allow 631/tcp
-
-# Enable firewall
-sudo ufw enable
-```
+> **Script**: See [appendix/code-examples/deployment/03-configure-firewall.sh](../../../appendix/code-examples/deployment/03-configure-firewall.sh)
 
 **4. Set Static IP** (if not already configured)
 ```bash
@@ -61,18 +40,8 @@ sudo nano /etc/netplan/01-netcfg.yaml
 ```
 
 Example config:
-```yaml
-network:
-  version: 2
-  ethernets:
-    eth0:
-      dhcp4: no
-      addresses:
-        - 192.168.1.100/24
-      gateway4: 192.168.1.1
-      nameservers:
-        addresses: [8.8.8.8, 8.8.4.4]
-```
+
+> **Config File**: See [appendix/code-examples/deployment/netplan-config.yaml](../../../appendix/code-examples/deployment/netplan-config.yaml)
 
 Apply:
 ```bash
@@ -89,27 +58,13 @@ sudo netplan apply
 
 **2. Add Printer to CUPS**
 
-```bash
-# USB connection
-sudo lpadmin -p zebra_z230_line1 \
-  -E \
-  -v usb://Zebra%20Technologies/ZTC%20ZD230-203dpi%20ZPL \
-  -m raw
-
-# Network connection
-sudo lpadmin -p zebra_z230_line1 \
-  -E \
-  -v socket://192.168.1.200:9100 \
-  -m raw
-
-# Set as default
-sudo lpadmin -d zebra_z230_line1
-```
+> **Scripts**: 
+> - USB: [appendix/code-examples/deployment/04-add-printer-usb.sh](../../../appendix/code-examples/deployment/04-add-printer-usb.sh)
+> - Network: [appendix/code-examples/deployment/05-add-printer-network.sh](../../../appendix/code-examples/deployment/05-add-printer-network.sh)
 
 **3. Test Printer**
-```bash
-echo "^XA^FO50,50^A0N,50,50^FDTest Print^FS^XZ" | lp -d zebra_z230_line1 -o raw
-```
+
+> **Script**: See [appendix/code-examples/deployment/06-test-printer.sh](../../../appendix/code-examples/deployment/06-test-printer.sh)
 
 ---
 
@@ -135,103 +90,28 @@ label-print-server/
 ```
 
 **3. Create requirements.txt**
-```txt
-Flask==2.3.3
-gunicorn==21.2.0
-python-cups==2.0.1
-redis==5.0.0
-rq==1.15.1
-requests==2.31.0
-python-dotenv==1.0.0
-```
+
+> **File**: See [appendix/code-examples/deployment/requirements.txt](../../../appendix/code-examples/deployment/requirements.txt)
 
 **4. Create .env File**
-```bash
-API_KEY=your-secret-api-key-here
-REDIS_HOST=localhost
-REDIS_PORT=6379
-LOG_LEVEL=INFO
-```
+
+> **Template**: See [appendix/code-examples/deployment/.env.example](../../../appendix/code-examples/deployment/.env.example)
 
 **5. Create Dockerfile**
-```dockerfile
-FROM python:3.10-slim
 
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y libcups2-dev gcc
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-EXPOSE 5000
-
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:app"]
-```
+> **File**: See [appendix/code-examples/deployment/Dockerfile](../../../appendix/code-examples/deployment/Dockerfile)
 
 **6. Create docker-compose.yml**
-```yaml
-version: '3.8'
 
-services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-
-  flask-api:
-    build: .
-    ports:
-      - "5000:5000"
-    environment:
-      - REDIS_HOST=redis
-    env_file:
-      - .env
-    volumes:
-      - ./logs:/app/logs
-      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  worker:
-    build: .
-    command: rq worker print --url redis://redis:6379
-    environment:
-      - REDIS_HOST=redis
-    env_file:
-      - .env
-    volumes:
-      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-volumes:
-  redis-data:
-```
+> **File**: See [appendix/code-examples/deployment/docker-compose.yml](../../../appendix/code-examples/deployment/docker-compose.yml)
 
 **7. Deploy with Docker Compose**
-```bash
-sudo docker-compose up -d
-```
+
+> **Script**: See [appendix/code-examples/deployment/07-deploy-docker.sh](../../../appendix/code-examples/deployment/07-deploy-docker.sh)
 
 **8. Verify Deployment**
-```bash
-# Check containers
-sudo docker-compose ps
 
-# Check logs
-sudo docker-compose logs -f flask-api
-
-# Test API
-curl http://localhost:5000/api/health
-```
+> **Script**: See [appendix/code-examples/deployment/08-verify-deployment.sh](../../../appendix/code-examples/deployment/08-verify-deployment.sh)
 
 ---
 
@@ -321,13 +201,8 @@ Navigate to: `Manufacturing → Configuration → Printers`
 ## Post-Deployment
 
 ### Backup Configuration
-```bash
-# Backup Odoo database
-# (via Odoo database manager)
 
-# Backup Flask server config
-sudo tar -czf label-print-backup.tar.gz /opt/label-print-server
-```
+> **Script**: See [appendix/code-examples/deployment/backup-config.sh](../../../appendix/code-examples/deployment/backup-config.sh)
 
 ### Set Up Monitoring
 - Configure log rotation

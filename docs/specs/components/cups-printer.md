@@ -12,40 +12,18 @@ CUPS (Common Unix Printing System) manages the physical connection to Zebra Z230
 ## Installation
 
 ### Ubuntu Server
-```bash
-# Install CUPS
-sudo apt update
-sudo apt install cups cups-client
 
-# Install python-cups
-pip install pycups
-
-# Start CUPS service
-sudo systemctl start cups
-sudo systemctl enable cups
-```
+> **Script**: See [appendix/code-examples/cups/install-cups.sh](../../../appendix/code-examples/cups/install-cups.sh)
 
 ## Printer Configuration
 
 ### Add Zebra Z230 to CUPS
 
 **Via Command Line**:
-```bash
-# USB connection
-lpadmin -p zebra_z230_line1 \
-  -E \
-  -v usb://Zebra%20Technologies/ZTC%20ZD230-203dpi%20ZPL \
-  -m raw
 
-# Network connection  
-lpadmin -p zebra_z230_line1 \
-  -E \
-  -v socket://192.168.1.100:9100 \
-  -m raw
-
-# Set as default (optional)
-lpadmin -d zebra_z230_line1
-```
+> **Scripts**:
+> - USB: [appendix/code-examples/cups/add-zebra-usb.sh](../../../appendix/code-examples/cups/add-zebra-usb.sh)
+> - Network: [appendix/code-examples/cups/add-zebra-network.sh](../../../appendix/code-examples/cups/add-zebra-network.sh)
 
 **Via Web Interface**:
 1. Navigate to `http://localhost:631`
@@ -64,145 +42,29 @@ lpadmin -d zebra_z230_line1
 
 ### Basic CUPS Operations
 
-```python
-import cups
+> **Code Example**: See [appendix/code-examples/cups/cups_printer_manager.py](../../../appendix/code-examples/cups/cups_printer_manager.py)
 
-class CUPSPrinterManager:
-    def __init__(self):
-        self.conn = cups.Connection()
-    
-    def list_printers(self):
-        """Get all configured printers"""
-        printers = self.conn.getPrinters()
-        return [
-            {
-                'name': name,
-                'state': info.get('printer-state-message', 'Unknown'),
-                'accepting': info.get('printer-is-accepting-jobs', False)
-            }
-            for name, info in printers.items()
-        ]
-    
-    def get_printer_status(self, printer_name):
-        """Check if printer is online and accepting jobs"""
-        try:
-            attrs = self.conn.getPrinterAttributes(printer_name)
-            state = attrs.get('printer-state', 0)
-            
-            # State codes: 3=idle, 4=processing, 5=stopped
-            if state == 3:
-                return 'idle'
-            elif state == 4:
-                return 'printing'
-            elif state == 5:
-                return 'stopped'
-            else:
-                return 'unknown'
-                
-        except cups.IPPError as e:
-            return f'error: {e}'
-    
-    def print_raw_zpl(self, printer_name, zpl_code, job_title="Label"):
-        """Send raw ZPL to printer"""
-        import tempfile
-        import os
-        
-        # Create temporary file with ZPL
-        with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.zpl',
-            delete=False
-        ) as f:
-            f.write(zpl_code)
-            temp_path = f.name
-        
-        try:
-            # Submit print job
-            job_id = self.conn.printFile(
-                printer_name,
-                temp_path,
-                job_title,
-                {'raw': 'true'}  # Important: disable all processing
-            )
-            return job_id
-            
-        except cups.IPPError as e:
-            raise Exception(f"Print failed: {e}")
-            
-        finally:
-            # Clean up temp file
-            os.unlink(temp_path)
-    
-    def cancel_job(self, printer_name, job_id):
-        """Cancel a print job"""
-        try:
-            self.conn.cancelJob(job_id)
-            return True
-        except cups.IPPError:
-            return False
-    
-    def get_jobs(self, printer_name):
-        """Get current jobs in printer queue"""
-        try:
-            jobs = self.conn.getJobs(
-                which_jobs='not-completed',
-                my_jobs=False,
-                requested_attributes=['job-id', 'job-name', 'job-state']
-            )
-            return jobs
-        except cups.IPPError:
-            return {}
-```
+Complete Python class for managing CUPS printers including listing, status checks, and raw ZPL printing.
 
 ### Error Handling
 
-```python
-def safe_print(printer_name, zpl_code, max_retries=3):
-    """Print with automatic retry on failure"""
-    manager = CUPSPrinterManager()
-    
-    for attempt in range(max_retries):
-        try:
-            # Check printer status first
-            status = manager.get_printer_status(printer_name)
-            if status == 'stopped':
-                raise Exception("Printer is stopped/offline")
-            
-            # Attempt to print
-            job_id = manager.print_raw_zpl(printer_name, zpl_code)
-            return job_id
-            
-        except cups.IPPError as e:
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # Exponential backoff
-                continue
-            else:
-                raise Exception(f"Failed after {max_retries} attempts: {e}")
-```
+> **Code Example**: See [appendix/code-examples/cups/safe_print_retry.py](../../../appendix/code-examples/cups/safe_print_retry.py)
+
+Prints with automatic retry logic and exponential backoff for error recovery.
 
 ## Troubleshooting
 
 ### Check CUPS Service Status
-```bash
-systemctl status cups
-```
+
+> **Script**: See [appendix/code-examples/cups/check-cups-status.sh](../../../appendix/code-examples/cups/check-cups-status.sh)
 
 ### View CUPS Logs
-```bash
-sudo tail -f /var/log/cups/error_log
-```
+
+> **Script**: See [appendix/code-examples/cups/view-cups-logs.sh](../../../appendix/code-examples/cups/view-cups-logs.sh)
 
 ### Test Printer Connection
-```bash
-# Send test page
-lp -d zebra_z230_line1 /usr/share/cups/data/testprint
 
-# Check printer status
-lpstat -p zebra_z230_line1 -l
-
-# List all jobs
-lpstat -o
-```
+> **Script**: See [appendix/code-examples/cups/test-printer-commands.sh](../../../appendix/code-examples/cups/test-printer-commands.sh)
 
 ### Common Issues
 
@@ -211,14 +73,12 @@ lpstat -o
 - Run `lpinfo -v` to list available devices
 
 **Permission Denied**:
-- Add user to `lpadmin` group:
-  ```bash
-  sudo usermod -a -G lpadmin $USER
-  ```
+
+> **Script**: See [appendix/code-examples/cups/fix-permissions.sh](../../../appendix/code-examples/cups/fix-permissions.sh)
 
 **Jobs Stuck in Queue**:
-- Clear queue: `cancel -a zebra_z230_line1`
-- Restart CUPS: `sudo systemctl restart cups`
+
+> **Script**: See [appendix/code-examples/cups/clear-queue.sh](../../../appendix/code-examples/cups/clear-queue.sh)
 
 ## Raw ZPL Printing
 
@@ -228,34 +88,20 @@ lpstat -o
 - Prevents corruption of barcode data
 
 ### Verification
-```python
-# Verify raw queue is configured
-import cups
-conn = cups.Connection()
-attrs = conn.getPrinterAttributes('zebra_z230_line1')
-print(attrs.get('printer-make-and-model'))  # Should show "Raw Queue"
-```
+
+> **Code Example**: See [appendix/code-examples/cups/verify_raw_queue.py](../../../appendix/code-examples/cups/verify_raw_queue.py)
 
 ## Performance Tuning
 
 ### CUPS Configuration
-Edit `/etc/cups/cupsd.conf`:
-```
-# Increase max jobs
-MaxJobs 500
 
-# Job retention
-MaxJobTime 3600
-JobRetryLimit 5
-JobRetryInterval 30
-```
+> **Config File**: See [appendix/code-examples/cups/cupsd.conf](../../../appendix/code-examples/cups/cupsd.conf)
+
+Edit `/etc/cups/cupsd.conf` and add these performance tuning settings.
 
 ### Network Printer Optimization
-```bash
-# Adjust socket timeout
-lpadmin -p zebra_z230_line1 -o printer-op-policy=default \
-  -o socket-timeout=60
-```
+
+> **Script**: See [appendix/code-examples/cups/optimize-network-printer.sh](../../../appendix/code-examples/cups/optimize-network-printer.sh)
 
 ## Related Documents
 - [System Architecture](../architecture/system-architecture.md)

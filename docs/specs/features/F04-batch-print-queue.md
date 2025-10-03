@@ -30,56 +30,22 @@ As a commissary operator, when I split an MO into 200 units, I want all labels t
 ## Technical Implementation
 
 ### Flask Queue Manager
-```python
-import redis
-from rq import Queue
 
-class PrintQueueManager:
-    def __init__(self):
-        self.redis_conn = redis.Redis(host='localhost', port=6379)
-        self.high_queue = Queue('high', connection=self.redis_conn)
-        self.default_queue = Queue('default', connection=self.redis_conn)
-        self.low_queue = Queue('low', connection=self.redis_conn)
-    
-    def enqueue_print_job(self, job_data, priority='normal'):
-        job_id = str(uuid.uuid4())
-        queue = self._get_queue_by_priority(priority)
-        
-        job = queue.enqueue(
-            'print_worker.process_batch_print',
-            job_id,
-            job_data,
-            job_timeout='30m'
-        )
-        
-        return {'job_id': job_id, 'status': 'queued'}
-```
+> **Code Example**: See [appendix/code-examples/flask/queue_manager.py](../../../appendix/code-examples/flask/queue_manager.py)
+
+Manages print job queuing with three priority tiers (high, normal, low) using Redis and RQ for reliable batch processing.
 
 ### Print Worker
-```python
-def process_batch_print(job_id, job_data):
-    labels = job_data['labels']
-    
-    for idx, label in enumerate(labels, 1):
-        # Update progress
-        redis_conn.hset(f"job:{job_id}", 'current_label', idx)
-        
-        # Print with retry
-        success = print_single_label(label, max_retries=3)
-        
-        if not success:
-            redis_conn.rpush(f"job:{job_id}:failed", idx)
-```
+
+> **Code Example**: See [appendix/code-examples/flask/print_worker.py](../../../appendix/code-examples/flask/print_worker.py)
+
+RQ worker that processes batches sequentially, tracks progress in Redis, and maintains a list of failed labels for retry.
 
 ## Job Resume
-```python
-def resume_failed_job(job_id):
-    failed_indices = redis_conn.lrange(f"job:{job_id}:failed", 0, -1)
-    failed_labels = [original_labels[int(i)-1] for i in failed_indices]
-    
-    # Create new high-priority job for failed labels
-    return enqueue_print_job({'labels': failed_labels}, priority='high')
-```
+
+> **Code Example**: See [appendix/code-examples/flask/job_resume.py](../../../appendix/code-examples/flask/job_resume.py)
+
+Retrieves failed label indices from Redis and creates a new high-priority job to reprint only the failed labels.
 
 ## Performance
 - Batch size limit: 200 labels recommended, 500 max

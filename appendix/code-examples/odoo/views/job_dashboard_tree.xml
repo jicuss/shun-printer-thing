@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Print Job Dashboard Tree View
+
+Tree view with status-based decorations and action buttons.
+
+Source: F07-job-monitoring.md - Example 31
+-->
+<odoo>
+    <record id="view_label_print_job_tree" model="ir.ui.view">
+        <field name="name">label.print.job.tree</field>
+        <field name="model">label.print.job</field>
+        <field name="arch" type="xml">
+            <tree string="Print Jobs" 
+                  decoration-success="status=='completed'"
+                  decoration-warning="status=='printing'"
+                  decoration-danger="status=='failed'"
+                  decoration-muted="status=='cancelled'">
+                <field name="create_date" string="Submitted"/>
+                <field name="mo_id"/>
+                <field name="quantity"/>
+                <field name="status"/>
+                <field name="progress_display" string="Progress"/>
+                <field name="job_type"/>
+                <field name="submitted_by"/>
+                
+                <button name="action_retry" type="object" 
+                        string="Retry" icon="fa-repeat"
+                        attrs="{'invisible': [('status', '!=', 'failed')]}"/>
+                
+                <button name="action_cancel" type="object" 
+                        string="Cancel" icon="fa-times"
+                        attrs="{'invisible': [('status', 'not in', ['pending', 'sent', 'queued', 'printing'])]}"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

@@ -11,99 +11,24 @@ Comprehensive testing strategy covering unit tests, integration tests, end-to-en
 #### Odoo Module Tests
 
 **Test: Lot Number Generation**
-```python
-class TestLotNumberGeneration(TransactionCase):
-    
-    def test_unique_lot_numbers(self):
-        """Verify lot numbers are unique"""
-        mo = self.env.ref('mrp.test_mo')
-        generator = self.env['lot.number.generator']
-        
-        lots = generator.generate_for_mo_split(mo, quantity=10)
-        lot_numbers = [lot.lot_number for lot in lots]
-        
-        # All unique
-        self.assertEqual(len(lot_numbers), len(set(lot_numbers)))
-    
-    def test_sequential_numbering(self):
-        """Verify lot numbers are sequential"""
-        mo = self.env.ref('mrp.test_mo')
-        generator = self.env['lot.number.generator']
-        
-        lots = generator.generate_for_mo_split(mo, quantity=5)
-        
-        # Extract sequence numbers
-        sequences = [int(lot.lot_number.split('-')[-1]) for lot in lots]
-        
-        # Check sequential
-        for i in range(1, len(sequences)):
-            self.assertEqual(sequences[i], sequences[i-1] + 1)
-```
+
+> **Code Example**: See [appendix/code-examples/tests/test_lot_number_generation.py](../../../appendix/code-examples/tests/test_lot_number_generation.py)
+
+Unit tests verifying lot number uniqueness and sequential numbering.
 
 **Test: GS1 Barcode Generation**
-```python
-class TestGS1Barcode(TransactionCase):
-    
-    def test_weight_encoding(self):
-        """Test catch weight encoding"""
-        generator = self.env['gs1.barcode.generator']
-        
-        # Test 1.250 kg
-        encoded = generator._encode_weight(1.250, decimal_places=3)
-        self.assertEqual(encoded, '001250')
-        
-        # Test edge cases
-        encoded = generator._encode_weight(0.001, decimal_places=3)
-        self.assertEqual(encoded, '000001')
-        
-        encoded = generator._encode_weight(999.999, decimal_places=3)
-        self.assertEqual(encoded, '999999')
-    
-    def test_gtin_validation(self):
-        """Test GTIN check digit validation"""
-        generator = self.env['gs1.barcode.generator']
-        
-        # Valid GTIN
-        self.assertTrue(generator._validate_gtin_check_digit('00012345678905'))
-        
-        # Invalid GTIN
-        self.assertFalse(generator._validate_gtin_check_digit('00012345678904'))
-```
+
+> **Code Example**: See [appendix/code-examples/tests/test_gs1_barcode.py](../../../appendix/code-examples/tests/test_gs1_barcode.py)
+
+Unit tests for GS1 weight encoding and GTIN check digit validation.
 
 #### Flask Server Tests
 
 **Test: Print Job Submission**
-```python
-import pytest
-from app import app
 
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
+> **Code Example**: See [appendix/code-examples/tests/test_flask_api.py](../../../appendix/code-examples/tests/test_flask_api.py)
 
-def test_print_job_submission(client):
-    """Test POST /api/print endpoint"""
-    response = client.post('/api/print', json={
-        'printer': 'zebra_z230_line1',
-        'quantity': 1,
-        'labels': [{'zpl_code': '^XA^FO50,50^A0N,50,50^FDTest^FS^XZ'}]
-    }, headers={'Authorization': 'Bearer test-key'})
-    
-    assert response.status_code == 201
-    assert 'job_id' in response.json
-
-def test_invalid_printer(client):
-    """Test submission to non-existent printer"""
-    response = client.post('/api/print', json={
-        'printer': 'invalid_printer',
-        'quantity': 1,
-        'labels': [{'zpl_code': '^XA^XZ'}]
-    }, headers={'Authorization': 'Bearer test-key'})
-    
-    assert response.status_code == 404
-```
+Flask API tests for print job submission and error handling.
 
 ---
 
@@ -113,52 +38,15 @@ def test_invalid_printer(client):
 
 **Scenario**: Split MO triggers automatic printing
 
-```python
-def test_mo_split_triggers_print(self):
-    """Test complete flow from MO split to print job creation"""
-    # Create MO
-    mo = self.env['mrp.production'].create({
-        'product_id': self.product.id,
-        'product_qty': 10
-    })
-    
-    # Split MO
-    mo.action_split_production()
-    
-    # Verify lot numbers generated
-    lots = self.env['lot.number.generator'].search([('mo_id', '=', mo.id)])
-    self.assertEqual(len(lots), 10)
-    
-    # Verify print job created
-    print_job = self.env['label.print.job'].search([('mo_id', '=', mo.id)])
-    self.assertTrue(print_job)
-    self.assertEqual(print_job.quantity, 10)
-    self.assertEqual(print_job.status, 'sent')
-```
+> **Code Example**: See [appendix/code-examples/tests/test_integration_mo_split.py](../../../appendix/code-examples/tests/test_integration_mo_split.py)
+
+Integration test for complete MO split to print job creation flow.
 
 #### Test: Odoo to Flask Communication
 
-```python
-import responses
+> **Code Example**: See [appendix/code-examples/tests/test_integration_flask_api.py](../../../appendix/code-examples/tests/test_integration_flask_api.py)
 
-@responses.activate
-def test_flask_api_communication(self):
-    """Test Odoo successfully calls Flask API"""
-    # Mock Flask API response
-    responses.add(
-        responses.POST,
-        'https://print-server.local:5000/api/print',
-        json={'job_id': 'test-uuid', 'status': 'queued'},
-        status=201
-    )
-    
-    job = self.env['label.print.job'].create({...})
-    job._submit_to_print_server()
-    
-    # Verify job updated with Flask job ID
-    self.assertEqual(job.flask_job_id, 'test-uuid')
-    self.assertEqual(job.status, 'sent')
-```
+Integration test with mocked Flask API responses to verify Odoo-Flask communication.
 
 ---
 
@@ -182,27 +70,10 @@ def test_flask_api_communication(self):
 - Job logged in history
 
 **Test Script**:
-```python
-def test_200_label_batch_print(self):
-    mo = self.create_mo_with_catch_weights(quantity=200)
-    
-    start_time = time.time()
-    mo.action_split_production()
-    
-    # Wait for completion (poll job status)
-    job = self.env['label.print.job'].search([('mo_id', '=', mo.id)])
-    self.wait_for_job_completion(job, timeout=600)  # 10 min timeout
-    
-    elapsed_time = time.time() - start_time
-    
-    # Assertions
-    self.assertEqual(job.status, 'completed')
-    self.assertLess(elapsed_time, 600)
-    
-    lots = self.env['lot.number.generator'].search([('mo_id', '=', mo.id)])
-    self.assertEqual(len(lots), 200)
-    self.assertTrue(all(lot.label_printed for lot in lots))
-```
+
+> **Code Example**: See [appendix/code-examples/tests/test_e2e_batch_print.py](../../../appendix/code-examples/tests/test_e2e_batch_print.py)
+
+End-to-end test for complete 200 label batch print workflow with timing and verification.
 
 #### Test Scenario 2: Manual Reprint
 
@@ -284,21 +155,11 @@ ab -n 1000 -c 10 \
 
 ## Test Data
 
-### Sample Products
+### Sample Products & Catch Weights
 
-```python
-products = [
-    {'name': 'Wild Caught Salmon', 'sku': 'SALM-001', 'gtin': '00012345678905'},
-    {'name': 'Atlantic Cod', 'sku': 'COD-001', 'gtin': '00012345678912'},
-    {'name': 'King Crab Legs', 'sku': 'CRAB-001', 'gtin': '00012345678929'},
-]
-```
+> **Code Example**: See [appendix/code-examples/tests/test_data.py](../../../appendix/code-examples/tests/test_data.py)
 
-### Sample Catch Weights
-
-```python
-weights = [1.150, 1.250, 1.350, 1.420, 1.180, 1.290, 1.310, 1.400, 1.220, 1.260]
-```
+Test data fixtures including sample products and catch weights for testing.
 
 ## Test Results Documentation
 

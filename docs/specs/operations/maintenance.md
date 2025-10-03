@@ -5,18 +5,7 @@ Ongoing maintenance procedures, monitoring, troubleshooting, and system updates.
 
 ## Daily Checklist
 
-```bash
-# Check services
-sudo docker-compose ps
-systemctl status cups
-lpstat -p zebra_z230_line1
-
-# Check logs
-sudo tail -50 /opt/label-print-server/logs/flask.log | grep -i error
-
-# Check disk space
-df -h
-```
+> **Script**: See [appendix/code-examples/maintenance/daily-checklist.sh](../../../appendix/code-examples/maintenance/daily-checklist.sh)
 
 ## Monitoring
 
@@ -38,32 +27,16 @@ df -h
 **Symptoms**: Print jobs fail, CUPS shows stopped
 
 **Resolution**:
-```bash
-# Check connection
-ping 192.168.1.200
 
-# Resume printer
-sudo cupsenable zebra_z230_line1
-
-# Test print
-echo "^XA^FO50,50^A0N,50,50^FDTest^FS^XZ" | lp -d zebra_z230_line1 -o raw
-```
+> **Script**: See [appendix/code-examples/maintenance/fix-printer-offline.sh](../../../appendix/code-examples/maintenance/fix-printer-offline.sh)
 
 ### Flask Server Unresponsive
 
 **Symptoms**: API timeout, jobs stuck
 
 **Resolution**:
-```bash
-# Restart containers
-sudo docker-compose restart
 
-# Check health
-curl http://localhost:5000/api/health
-
-# Check logs
-sudo docker-compose logs --tail=100
-```
+> **Script**: See [appendix/code-examples/maintenance/restart-flask.sh](../../../appendix/code-examples/maintenance/restart-flask.sh)
 
 ### Barcodes Not Scanning
 
@@ -76,52 +49,30 @@ sudo docker-compose logs --tail=100
 ## Backup
 
 ### Daily Backup Script
-```bash
-#!/bin/bash
-BACKUP_DIR="/backup/label-print"
-DATE=$(date +%Y%m%d)
 
-# Backup config
-sudo tar -czf "$BACKUP_DIR/config-$DATE.tar.gz" /opt/label-print-server
-
-# Backup Redis
-sudo docker-compose exec redis redis-cli SAVE
-
-# Clean old backups (30 days)
-find "$BACKUP_DIR" -mtime +30 -delete
-```
+> **Script**: See [appendix/code-examples/maintenance/daily-backup.sh](../../../appendix/code-examples/maintenance/daily-backup.sh)
 
 ## Updates
 
 ### Flask Server Update
-```bash
-cd /opt/label-print-server
-sudo git pull
-sudo docker-compose down
-sudo docker-compose build
-sudo docker-compose up -d
-```
+
+> **Script**: See [appendix/code-examples/maintenance/update-flask.sh](../../../appendix/code-examples/maintenance/update-flask.sh)
 
 ### System Updates
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo systemctl restart docker
-```
+
+> **Script**: See [appendix/code-examples/maintenance/system-update.sh](../../../appendix/code-examples/maintenance/system-update.sh)
 
 ## Performance Tuning
 
 ### Scale Workers
-```bash
-# Increase Flask workers
-sudo docker-compose up -d --scale worker=6
-```
+
+> **Script**: See [appendix/code-examples/maintenance/scale-workers.sh](../../../appendix/code-examples/maintenance/scale-workers.sh)
 
 ### CUPS Optimization
-Edit `/etc/cups/cupsd.conf`:
-```
-MaxJobs 500
-JobRetryLimit 5
-```
+
+> **Config**: See [appendix/code-examples/maintenance/cups-optimization.conf](../../../appendix/code-examples/maintenance/cups-optimization.conf)
+
+Edit `/etc/cups/cupsd.conf` and add these settings.
 
 ## Preventive Maintenance
 
@@ -145,19 +96,7 @@ JobRetryLimit 5
 
 ## Emergency Recovery
 
-```bash
-# Stop services
-sudo docker-compose down
-
-# Restore from backup
-sudo tar -xzf /backup/config-latest.tar.gz -C /
-
-# Restart
-sudo docker-compose up -d
-
-# Verify
-curl http://localhost:5000/api/health
-```
+> **Script**: See [appendix/code-examples/maintenance/emergency-recovery.sh](../../../appendix/code-examples/maintenance/emergency-recovery.sh)
 
 ## Support Contacts
 

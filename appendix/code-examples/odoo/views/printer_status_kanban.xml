@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Printer Status Kanban View
+
+Kanban view for monitoring printer status and availability.
+
+Source: F07-job-monitoring.md - Example 35
+-->
+<odoo>
+    <record id="view_printer_status_kanban" model="ir.ui.view">
+        <field name="name">printer.status.kanban</field>
+        <field name="model">printer.configuration</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="name"/>
+                <field name="status"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_card">
+                            <div class="o_kanban_card_content">
+                                <div class="o_kanban_primary_left">
+                                    <div class="o_primary">
+                                        <span><t t-esc="record.name.value"/></span>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_primary_right">
+                                    <span t-if="record.status.raw_value == 'online'"
+                                          class="badge badge-success">Online</span>
+                                    <span t-if="record.status.raw_value == 'offline'"
+                                          class="badge badge-danger">Offline</span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+</odoo>

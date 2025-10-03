@@ -1,0 +1,13 @@
+# Python Package Requirements
+#
+# Dependencies for the Flask print server.
+#
+# Source: operations/deployment.md - Example 55
+
+Flask==2.3.3
+gunicorn==21.2.0
+python-cups==2.0.1
+redis==5.0.0
+rq==1.15.1
+requests==2.31.0
+python-dotenv==1.0.0

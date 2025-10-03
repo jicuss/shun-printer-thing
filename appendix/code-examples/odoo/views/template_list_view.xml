@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Template List View
+
+Tree view for label templates with quick action buttons for preview and test print.
+
+Source: F06-template-management.md - Example 25
+-->
+<odoo>
+    <record id="view_label_template_tree" model="ir.ui.view">
+        <field name="name">label.template.tree</field>
+        <field name="model">label.template</field>
+        <field name="arch" type="xml">
+            <tree string="Label Templates">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="version"/>
+                <field name="is_default"/>
+                <field name="active"/>
+                <button name="action_preview_template" type="object" 
+                        icon="fa-eye" string="Preview"/>
+                <button name="action_test_print" type="object" 
+                        icon="fa-print" string="Test Print"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

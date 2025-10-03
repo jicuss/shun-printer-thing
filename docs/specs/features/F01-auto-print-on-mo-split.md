@@ -21,25 +21,9 @@ As a commissary operator, when I split a Manufacturing Order into multiple produ
 
 **Approach**: Odoo workflow hook/override
 
-```python
-class MrpProduction(models.Model):
-    _inherit = 'mrp.production'
-    
-    def action_split_production(self):
-        """Override split action to trigger label printing"""
-        result = super().action_split_production()
-        
-        # Trigger automatic label generation
-        if self.env.context.get('auto_print_labels', True):
-            self._trigger_label_printing()
-        
-        return result
-    
-    def _trigger_label_printing(self):
-        """Initiate automatic label print workflow"""
-        LabelPrintJob = self.env['label.print.job']
-        LabelPrintJob.create_from_mo_split(self)
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/mrp_production_split.py](../../../appendix/code-examples/odoo/models/mrp_production_split.py)
+
+The MRP Production model is extended to override the `action_split_production` method, automatically triggering label printing when a manufacturing order is split into multiple units.
 
 ### 2. Event Listener Registration
 
@@ -50,20 +34,9 @@ class MrpProduction(models.Model):
 
 ### 3. Lot Number Generation
 
-**Logic**:
-```python
-def _generate_lot_numbers(self, mo_id, quantity):
-    """Generate sequential lot numbers for MO split"""
-    year = fields.Date.today().year
-    base_sequence = self.env['ir.sequence'].next_by_code('lot.number.sequence')
-    
-    lot_numbers = []
-    for i in range(quantity):
-        lot_number = f"LOT-{year}-{base_sequence + i:06d}"
-        lot_numbers.append(lot_number)
-    
-    return lot_numbers
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/lot_number_generation.py](../../../appendix/code-examples/odoo/models/lot_number_generation.py)
+
+**Logic**: Sequential lot numbers are generated using Odoo's ir.sequence with year-based prefixes (e.g., LOT-2025-000001).
 
 ### 4. Label Data Preparation
 
@@ -76,97 +49,21 @@ def _generate_lot_numbers(self, mo_id, quantity):
 
 ### 5. Batch Print Job Creation
 
-```python
-def create_from_mo_split(self, mo):
-    """Create batch print job for MO split"""
-    quantity = len(mo.move_raw_ids)  # Number of product units
-    lot_numbers = self._generate_lot_numbers(mo.id, quantity)
-    
-    labels_data = []
-    for idx, lot_number in enumerate(lot_numbers):
-        label_zpl = self._generate_label_zpl(
-            mo=mo,
-            lot_number=lot_number,
-            box_number=idx + 1,
-            total_boxes=quantity
-        )
-        labels_data.append({
-            'zpl_code': label_zpl,
-            'lot_number': lot_number,
-            'box_number': idx + 1
-        })
-    
-    # Create print job record
-    job = self.create({
-        'mo_id': mo.id,
-        'quantity': quantity,
-        'status': 'pending',
-        'labels_data': json.dumps(labels_data)
-    })
-    
-    # Submit to Flask API
-    job._submit_to_print_server()
-    
-    return job
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/print_job_creation.py](../../../appendix/code-examples/odoo/models/print_job_creation.py)
+
+The `create_from_mo_split` method orchestrates the entire print job creation process: generating lot numbers, populating ZPL templates, creating the job record, and submitting to the Flask API.
 
 ### 6. API Submission
 
-```python
-def _submit_to_print_server(self):
-    """Send print job to Flask server"""
-    config = self.env['ir.config_parameter'].sudo()
-    api_url = config.get_param('label_print.api_url')
-    api_key = config.get_param('label_print.api_key')
-    printer_name = config.get_param('label_print.default_printer')
-    
-    payload = {
-        'printer': printer_name,
-        'quantity': self.quantity,
-        'labels': json.loads(self.labels_data),
-        'job_metadata': {
-            'mo_reference': self.mo_id.name,
-            'priority': 'normal'
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"{api_url}/api/print",
-            json=payload,
-            headers={'Authorization': f'Bearer {api_key}'},
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        result = response.json()
-        self.write({
-            'flask_job_id': result['job_id'],
-            'status': 'sent'
-        })
-        
-        # Start polling for status
-        self._start_status_polling()
-        
-    except requests.exceptions.RequestException as e:
-        self.write({
-            'status': 'failed',
-            'error_message': str(e)
-        })
-        self._handle_print_failure()
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/flask_api_submission.py](../../../appendix/code-examples/odoo/models/flask_api_submission.py)
+
+Submits the print job to the Flask server via HTTP POST with authentication, error handling, and automatic status polling initiation.
 
 ### 7. Status Polling
 
-```python
-def _start_status_polling(self):
-    """Begin polling Flask server for job status"""
-    # Schedule cron job or use @api.model scheduled action
-    self.env.ref('label_print.poll_print_status_cron').sudo().write({
-        'active': True,
-        'nextcall': fields.Datetime.now()
-    })
-```
+> **Code Example**: See [appendix/code-examples/odoo/models/status_polling.py](../../../appendix/code-examples/odoo/models/status_polling.py)
+
+Initiates periodic polling of the Flask server to track print job progress and completion status.
 
 ### 8. User Notification
 
@@ -182,26 +79,10 @@ def _start_status_polling(self):
 ## Data Model
 
 ### label.print.job
-```python
-class LabelPrintJob(models.Model):
-    _name = 'label.print.job'
-    _description = 'Label Print Job'
-    
-    mo_id = fields.Many2one('mrp.production', required=True)
-    flask_job_id = fields.Char('External Job ID')
-    quantity = fields.Integer('Label Quantity', required=True)
-    status = fields.Selection([
-        ('pending', 'Pending'),
-        ('sent', 'Sent to Printer'),
-        ('printing', 'Printing'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed')
-    ], default='pending')
-    labels_data = fields.Text('Label Data (JSON)')  # Store ZPL codes
-    error_message = fields.Text('Error Message')
-    submitted_date = fields.Datetime('Submitted At', default=fields.Datetime.now)
-    completed_date = fields.Datetime('Completed At')
-```
+
+> **Code Example**: See [appendix/code-examples/odoo/models/label_print_job.py](../../../appendix/code-examples/odoo/models/label_print_job.py)
+
+The print job model tracks all label printing operations with status lifecycle, error logging, and links to manufacturing orders.
 
 ## Error Handling
 
